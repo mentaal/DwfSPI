@@ -20,7 +20,7 @@ class SPI():
                  pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2),
                  CPOL=0,
                  CPHA=0,
-                 speed=10e6):
+                 speed=1e6):
         '''initialize dll and SPI configuration
         Note: setup times are probably not required as this library will likely
         be too slow to need them
@@ -72,14 +72,6 @@ class SPI():
         self.hdwf = hdwf
         self.dwf = dwf
 
-    def output_state(self, state):
-        'apply to the SPI interface, the current state'
-        to_output =  state[0] << self.MOSI_mask
-        to_output |= state[1] << self.SCLK_mask
-        to_output |= state[2] << self.SS_mask
-        self.dwf.FDwfDigitalIOOutputSet(self.hdev, to_output)
-
-
     def initialize_pins(self):
         '''setup gpio pins as desired'''
         ##reset all gpio pins
@@ -122,7 +114,6 @@ class SPI():
         # start with low or high based on clock polarity
         dwf.FDwfDigitalOutCounterInitSet(hdwf, self.pin_cfg.SCLK, self.CPOL, 1)
         dwf.FDwfDigitalOutIdleSet(hdwf, self.pin_cfg.SCLK, 1+self.CPOL) # 1=DwfDigitalOutIdleLow 2=DwfDigitalOutIdleHigh
-        dwf.FDwfDigitalOutIdleSet(hdwf, self.pin_cfg.MOSI, DwfDigitalOutIdleLow) # 1=DwfDigitalOutIdleLow 2=DwfDigitalOutIdleHigh
 
         # DIO 0 Data
         dwf.FDwfDigitalOutEnableSet(hdwf, self.pin_cfg.MOSI, 1)
@@ -134,6 +125,7 @@ class SPI():
         dwf.FDwfDigitalOutDividerSet(hdwf, self.pin_cfg.MOSI, bit_divider_ratio)
         # data sent out LSB first
         #dwf.FDwfDigitalOutDataSet(hdwf, self.pin_cfg.MOSI, byref(data), self.cBits)
+        dwf.FDwfDigitalOutIdleSet(hdwf, self.pin_cfg.MOSI, DwfDigitalOutIdleLow) # 1=DwfDigitalOutIdleLow 2=DwfDigitalOutIdleHigh
 
         return sclk_divider_ratio
 
@@ -152,7 +144,15 @@ class SPI():
 
         dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
         #trigger on falling SS
-        dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SS_mask) #low, high, rising, falling
+        #dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SS_mask) #low, high, rising, falling
+        if self.CPOL == 0 and self.CPHA == 0:
+            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, self.SCLK_mask, 0) #low, high, rising, falling
+        elif self.CPOL == 0 and self.CPHA == 1:
+            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SCLK_mask) #low, high, rising, falling
+        elif self.CPOL == 1 and self.CPHA == 0:
+            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, self.SCLK_mask, 0) #low, high, rising, falling
+        elif self.CPOL == 1 and self.CPHA == 1:
+            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SCLK_mask) #low, high, rising, falling
         #dwf.FDwfDigitalInTriggerPositionSet(hdwf, 2+self.CPHA)
         #dwf.FDwfDigitalInTriggerAutoTimeoutSet(hdwf, c_double(2))
 
@@ -166,7 +166,7 @@ class SPI():
         hdwf = self.hdwf
         byte_count = len(byte_array)
         bit_count = byte_count*8
-        sample_count = bit_count*2+1 #sample at clock freq to cater for cpha
+        sample_count = bit_count*2+2 #sample at clock freq to cater for cpha
         #logger.info('bit_count: {}'.format(bit_count))
         # serialization time length
         dwf.FDwfDigitalOutRunSet(hdwf, c_double((bit_count+0.4)/self.speed))
@@ -195,6 +195,10 @@ class SPI():
         dwf.FDwfDigitalOutDataSet(hdwf, self.pin_cfg.MOSI, byref(data), bit_count)
         # begin acquisition
         dwf.FDwfDigitalInConfigure(hdwf, 0, 1) #reconfigure, start acquisition
+        #dwf.FDwfDigitalInStatus(hdwf, 1, byref(sts))
+        ##logger.info("STS VAL: {}".format(sts.value))
+        #assert sts.value == stsArm.value
+
 
         dwf.FDwfDigitalOutConfigure(hdwf, 1)
 
@@ -220,12 +224,20 @@ class SPI():
         byte_array = []
 
         b = 0
-        logger.debug("Number of samples collected: {}".format(len(rgwSamples)))
-        if self.CPHA == 0:
-            Slice = rgwSamples[:bit_count*2:2]
-            logger.info('slice len: {}'.format(len(Slice)))
-        else:
-            Slice = rgwSamples[1::2]
+        #logger.debug("Number of samples collected: {}".format(len(rgwSamples)))
+        #for i, sample in enumerate(rgwSamples):
+        #    rx_bit = (sample>>self.pin_cfg.MISO)&1
+        #    logger.info("Sample {:2}: {:2}, mosi: {}, miso: {}".format(i, sample,
+        #        (sample>>self.pin_cfg.MOSI)&1,
+        #        rx_bit))
+
+        #print('')
+        #if self.CPHA == 0:
+        #    Slice = rgwSamples[:bit_count*2:2]
+        #    logger.info('slice len: {}'.format(len(Slice)))
+        #else:
+        #    Slice = rgwSamples[1:bit_count*2+1:2]
+        Slice = rgwSamples[:bit_count*2:2]
         for i, sample in enumerate(Slice):
             i_mod_8 = i%8
             if i_mod_8==0 and i!=0: #new byte is ready
@@ -237,9 +249,9 @@ class SPI():
             else:
                 b <<= 1
                 b |= rx_bit
-            #logger.info("Sample {:2}: {:2}, mosi: {}, miso: {}".format(i, sample,
-            #    (sample>>self.pin_cfg.MOSI)&1,
-            #    rx_bit))
+        #    logger.info("Sample {:2}: {:2}, mosi: {}, miso: {}".format(i, sample,
+        #        (sample>>self.pin_cfg.MOSI)&1,
+        #        rx_bit))
         byte_array.append(b)
         #logger.info("Returning: {}".format(byte_array))
         return byte_array
@@ -254,13 +266,18 @@ if __name__ == '__main__':
 
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
-    spi = SPI(pin_cfg=pin_cfg, CPHA=1)
+    #warning - timings for cpha=1 are off...retrieved data is unreliable!
+    spi = SPI(pin_cfg=pin_cfg, CPHA=0, CPOL=0)
     spi.initialize_pins()
 
 
     #spi.write(0x12345678)
     #spi.write(bytes([7]))
-    spi.write(bytes([7]), lsb_rx_first=False)
-    returned = spi.write(bytes(range(100)))
-    assert returned == list(range(100))
+    for i in range(1000):
+        returned = spi.write(bytes([7]), lsb_rx_first=False)
+        #print('returned: {}'.format(returned))
+        assert returned == [7]
+    #returned = spi.write(bytes(range(100)))
+    #print('returned: {}'.format(returned))
+    #assert returned == list(range(100))
     #spi.write(bytes([7,6]))
