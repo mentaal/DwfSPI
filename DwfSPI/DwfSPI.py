@@ -1,6 +1,6 @@
 from ctypes import (cdll, c_int, c_long, byref, create_string_buffer,
                     c_double, c_uint, c_bool, c_byte)
-from dwfconstants import *
+from .dwfconstants import *
 import time
 import math
 from time import sleep
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
     #warning - timings for cpha=1 are off...retrieved data is unreliable!
-    spi = DwfSPI(pin_cfg=pin_cfg, CPHA=0, CPOL=1)
+    spi = DwfSPI(pin_cfg=pin_cfg, CPHA=1, CPOL=1)
     spi.initialize_pins()
 
 
