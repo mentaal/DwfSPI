@@ -20,7 +20,7 @@ class SPI():
                  pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2),
                  CPOL=0,
                  CPHA=0,
-                 speed=1e6):
+                 speed=10e6):
         '''initialize dll and SPI configuration
         Note: setup times are probably not required as this library will likely
         be too slow to need them
@@ -87,8 +87,6 @@ class SPI():
         '''setup output pins'''
         hzSys = c_double()
         dwf.FDwfDigitalOutInternalClockInfo(hdwf, byref(hzSys))
-        data = c_uint(0x12345678)
-        #data = (2*c_byte)(*[0x55,0x55])
 
         bit_divider_ratio = int(hzSys.value/self.speed)
         sclk_divider_ratio = int(hzSys.value/self.speed/2)
@@ -123,8 +121,6 @@ class SPI():
                 int((1+0.5*self.CPHA)*bit_divider_ratio))
         # SPI frequency, bit frequency
         dwf.FDwfDigitalOutDividerSet(hdwf, self.pin_cfg.MOSI, bit_divider_ratio)
-        # data sent out LSB first
-        #dwf.FDwfDigitalOutDataSet(hdwf, self.pin_cfg.MOSI, byref(data), self.cBits)
         dwf.FDwfDigitalOutIdleSet(hdwf, self.pin_cfg.MOSI, DwfDigitalOutIdleLow) # 1=DwfDigitalOutIdleLow 2=DwfDigitalOutIdleHigh
 
         return sclk_divider_ratio
@@ -142,19 +138,18 @@ class SPI():
         # 16bit per sample format
         dwf.FDwfDigitalInSampleFormatSet(hdwf, c_int(16))
 
-        dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
+        #dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
+        dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalIn)
         #trigger on falling SS
         #dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SS_mask) #low, high, rising, falling
         if self.CPOL == 0 and self.CPHA == 0:
-            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, self.SCLK_mask, 0) #low, high, rising, falling
+            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, self.SCLK_mask, 0) #low, high, rising, falling
         elif self.CPOL == 0 and self.CPHA == 1:
-            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SCLK_mask) #low, high, rising, falling
+            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, 0, self.SCLK_mask) #low, high, rising, falling
         elif self.CPOL == 1 and self.CPHA == 0:
-            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, self.SCLK_mask, 0) #low, high, rising, falling
+            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, self.SCLK_mask, 0) #low, high, rising, falling
         elif self.CPOL == 1 and self.CPHA == 1:
-            dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SCLK_mask) #low, high, rising, falling
-        #dwf.FDwfDigitalInTriggerPositionSet(hdwf, 2+self.CPHA)
-        #dwf.FDwfDigitalInTriggerAutoTimeoutSet(hdwf, c_double(2))
+            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, 0, self.SCLK_mask) #low, high, rising, falling
 
 
 
@@ -203,11 +198,6 @@ class SPI():
         dwf.FDwfDigitalOutConfigure(hdwf, 1)
 
 
-        #sleep(1)
-        #TODO add return stuff
-
-        #logger.info("waiting to finish..")
-
         while True:
             dwf.FDwfDigitalInStatus(hdwf, 1, byref(sts))
             #logger.info("STS VAL: {}".format(sts.value))
@@ -231,12 +221,6 @@ class SPI():
         #        (sample>>self.pin_cfg.MOSI)&1,
         #        rx_bit))
 
-        #print('')
-        #if self.CPHA == 0:
-        #    Slice = rgwSamples[:bit_count*2:2]
-        #    logger.info('slice len: {}'.format(len(Slice)))
-        #else:
-        #    Slice = rgwSamples[1:bit_count*2+1:2]
         Slice = rgwSamples[:bit_count*2:2]
         for i, sample in enumerate(Slice):
             i_mod_8 = i%8
@@ -264,6 +248,7 @@ class SPI():
 
 if __name__ == '__main__':
 
+    import random
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
     #warning - timings for cpha=1 are off...retrieved data is unreliable!
@@ -271,13 +256,16 @@ if __name__ == '__main__':
     spi.initialize_pins()
 
 
-    #spi.write(0x12345678)
-    #spi.write(bytes([7]))
-    for i in range(1000):
-        returned = spi.write(bytes([7]), lsb_rx_first=False)
-        #print('returned: {}'.format(returned))
-        assert returned == [7]
-    #returned = spi.write(bytes(range(100)))
-    #print('returned: {}'.format(returned))
-    #assert returned == list(range(100))
-    #spi.write(bytes([7,6]))
+    #below test assumes that MOSI is tied to MISO physically
+    for i in range(100):
+        num = random.randint(0,255)
+        returned = spi.write(bytes([num]), lsb_rx_first=False)
+        assert returned == [num]
+    #check a long packet
+    nums = (random.randint(0,22) for i in range(100))
+    to_write = bytes(nums)
+    #print("to_write: {}".format(to_write))
+    returned = spi.write(to_write)
+    #print(returned)
+    assert returned == list(to_write)
+    ##print('returned: {}'.format(returned))
