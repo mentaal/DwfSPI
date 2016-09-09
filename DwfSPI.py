@@ -8,7 +8,6 @@ from collections import namedtuple
 import logging
 import sys
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 SPI_PINS = namedtuple('SPI_PINS', 'MOSI, MISO, SCLK, SS')
@@ -248,6 +247,7 @@ class DwfSPI():
 
 if __name__ == '__main__':
 
+    logging.basicConfig(level=logging.DEBUG)
     import random
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
