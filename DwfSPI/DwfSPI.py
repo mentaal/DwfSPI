@@ -70,16 +70,18 @@ class DwfSPI():
 
         self.hdwf = hdwf
         self.dwf = dwf
+        self.initialize_pins()
+
+    def fully_initialize_pins(self):
+        self.dwf.FDwfDigitalIOReset(self.hdwf)
+        self.initialize_pins()
+
 
     def initialize_pins(self):
         '''setup gpio pins as desired'''
         ##reset all gpio pins
-        #dwf = self.dwf
-        dwf = self.dwf
-        hdwf = self.hdwf
-        dwf.FDwfDigitalIOReset(hdwf)
-        bit_divider_ratio = self.setup_output(dwf, hdwf)
-        self.setup_input(dwf, hdwf, bit_divider_ratio)
+        bit_divider_ratio = self.setup_output(self.dwf, self.hdwf)
+        self.setup_input(self.dwf, self.hdwf, bit_divider_ratio)
 
 
     def setup_output(self, dwf, hdwf):
@@ -238,7 +240,6 @@ class DwfSPI():
 
 
     def __del__(self):
-        self.dwf.FDwfDigitalOutReset(self.hdwf);
         self.dwf.FDwfDeviceCloseAll()
 
 if __name__ == '__main__':
