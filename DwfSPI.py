@@ -137,8 +137,8 @@ class DwfSPI():
         # 16bit per sample format
         dwf.FDwfDigitalInSampleFormatSet(hdwf, c_int(16))
 
-        #dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
-        dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalIn)
+        dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
+        #dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalIn)
         #trigger on falling SS
         #dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SS_mask) #low, high, rising, falling
         if self.CPOL == 0 and self.CPHA == 0:
@@ -165,14 +165,10 @@ class DwfSPI():
         # serialization time length
         dwf.FDwfDigitalOutRunSet(hdwf, c_double((bit_count+0.4)/self.speed))
 
-        dwf.FDwfDigitalInTriggerSourceSet(hdwf, trigsrcDigitalOut)
-        #trigger on falling SS
-        dwf.FDwfDigitalInTriggerSet(hdwf, 0, 0, 0, self.SS_mask) #low, high, rising, falling
         # set number of sample to acquire
         dwf.FDwfDigitalInBufferSizeSet(hdwf, sample_count)
         # number of samples after trigger
         dwf.FDwfDigitalInTriggerPositionSet(hdwf, sample_count)
-        #skip first sample as it occurs on active edge of SS
 
         if lsb_tx_first:
             data = (c_byte*byte_count)(*byte_array)
@@ -213,12 +209,12 @@ class DwfSPI():
         byte_array = []
 
         b = 0
-        #logger.debug("Number of samples collected: {}".format(len(rgwSamples)))
-        #for i, sample in enumerate(rgwSamples):
-        #    rx_bit = (sample>>self.pin_cfg.MISO)&1
-        #    logger.info("Sample {:2}: {:2}, mosi: {}, miso: {}".format(i, sample,
-        #        (sample>>self.pin_cfg.MOSI)&1,
-        #        rx_bit))
+        logger.debug("Number of samples collected: {}".format(len(rgwSamples)))
+        for i, sample in enumerate(rgwSamples):
+            rx_bit = (sample>>self.pin_cfg.MISO)&1
+            logger.debug("Sample {:2}: {:2}, mosi: {}, miso: {}".format(i, sample,
+                (sample>>self.pin_cfg.MOSI)&1,
+                rx_bit))
 
         Slice = rgwSamples[:bit_count*2:2]
         for i, sample in enumerate(Slice):
@@ -252,20 +248,23 @@ if __name__ == '__main__':
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
     #warning - timings for cpha=1 are off...retrieved data is unreliable!
-    spi = DwfSPI(pin_cfg=pin_cfg, CPHA=0, CPOL=0)
+    spi = DwfSPI(pin_cfg=pin_cfg, CPHA=0, CPOL=1)
     spi.initialize_pins()
 
 
     #below test assumes that MOSI is tied to MISO physically
-    for i in range(100):
-        num = random.randint(0,255)
-        returned = spi.write(bytes([num]), lsb_rx_first=False)
-        assert returned == [num]
-    #check a long packet
-    nums = (random.randint(0,22) for i in range(100))
-    to_write = bytes(nums)
-    #print("to_write: {}".format(to_write))
-    returned = spi.write(to_write)
-    #print(returned)
-    assert returned == list(to_write)
-    ##print('returned: {}'.format(returned))
+    returned = spi.write(bytes([0x55]), lsb_rx_first=False)
+    print(hex(returned[0]))
+    assert returned == [0x55]
+    #for i in range(100):
+    #    num = random.randint(0,255)
+    #    returned = spi.write(bytes([num]), lsb_rx_first=False)
+    #    assert returned == [num]
+    ##check a long packet
+    #nums = (random.randint(0,22) for i in range(100))
+    #to_write = bytes(nums)
+    ##print("to_write: {}".format(to_write))
+    #returned = spi.write(to_write)
+    ##print(returned)
+    #assert returned == list(to_write)
+    ###print('returned: {}'.format(returned))
