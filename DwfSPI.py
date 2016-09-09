@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 SPI_PINS = namedtuple('SPI_PINS', 'MOSI, MISO, SCLK, SS')
 
 
-class SPI():
+class DwfSPI():
     '''simple class to bitbang spi on the digital Analog Discovery kit'''
     def __init__(self,
                  pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2),
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
     #warning - timings for cpha=1 are off...retrieved data is unreliable!
-    spi = SPI(pin_cfg=pin_cfg, CPHA=0, CPOL=0)
+    spi = DwfSPI(pin_cfg=pin_cfg, CPHA=0, CPOL=0)
     spi.initialize_pins()
 
 
