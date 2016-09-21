@@ -148,9 +148,9 @@ class DwfSPI():
         elif self.CPOL == 0 and self.CPHA == 1:
             dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, 0, self.SCLK_mask) #low, high, rising, falling
         elif self.CPOL == 1 and self.CPHA == 0:
-            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, self.SCLK_mask, 0) #low, high, rising, falling
-        elif self.CPOL == 1 and self.CPHA == 1:
             dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, 0, self.SCLK_mask) #low, high, rising, falling
+        elif self.CPOL == 1 and self.CPHA == 1:
+            dwf.FDwfDigitalInTriggerSet(hdwf, self.SS_mask, 0, self.SCLK_mask, 0) #low, high, rising, falling
 
 
 
