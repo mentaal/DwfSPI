@@ -68,6 +68,21 @@ class DwfSPI():
             logger.fatal("failed to open device")
             sys.exit()
 
+        max_output_samples = c_int()
+        max_input_samples  = c_int()
+
+        channel0 = c_int(0)
+        dwf.FDwfDigitalOutDataInfo(hdwf, channel0, byref(max_output_samples))
+        dwf.FDwfDigitalInBufferSizeInfo(hdwf, byref(max_input_samples))
+        logger.debug("Output buffer size max: {} bits".format(max_output_samples))
+        logger.debug("Input buffer size max: {} bits".format(max_input_samples))
+        self.max_output_samples = max_output_samples.value
+        self.max_input_samples  = max_input_samples.value
+        self.max_byte_count = (max_output_samples.value - 2)//16
+        #samples/2 == bits/8 = bytes
+        #the "-2" is due to catering for cpha - see the write function
+        logger.debug("Max number of bytes == {}".format(self.max_byte_count))
+
         self.hdwf = hdwf
         self.dwf = dwf
         self.initialize_pins()
@@ -128,9 +143,9 @@ class DwfSPI():
 
     def setup_input(self, dwf, hdwf, sclk_divider_ratio):
 
-        buff_max = c_int()
-        dwf.FDwfDigitalInBufferSizeGet(hdwf, byref(buff_max))
-        logger.debug("Maximum buffer size is: {}".format(buff_max))
+        #buff_max = c_int()
+        #dwf.FDwfDigitalInBufferSizeGet(hdwf, byref(buff_max))
+        #logger.debug("Maximum buffer size is: {}".format(buff_max))
         dwf.FDwfDigitalInAcquisitionModeSet(hdwf, acqmodeSingle)
         #setup data read currently in loopback
         #just read back what is being written to MOSI as a sanity check
@@ -161,8 +176,14 @@ class DwfSPI():
         dwf = self.dwf
         hdwf = self.hdwf
         byte_count = len(byte_array)
+        #maximum effective byte length is 63
+        #(1024 samples/2 = 512 bits = 64 bytes
+        #2 samples consumed => 63 bytes (12 words)
+        assert byte_count <= 63
         bit_count = byte_count*8
         sample_count = bit_count*2+2 #sample at clock freq to cater for cpha
+        assert sample_count < self.max_output_samples, \
+                "Attempted write would exceed the output buffer length"
         #logger.info('bit_count: {}'.format(bit_count))
         # serialization time length
         dwf.FDwfDigitalOutRunSet(hdwf, c_double((bit_count+0.4)/self.speed))
@@ -248,7 +269,6 @@ if __name__ == '__main__':
     import random
     pin_cfg=SPI_PINS(MOSI=0,MISO=3,SCLK=1,SS=2)
     print(pin_cfg)
-    #warning - timings for cpha=1 are off...retrieved data is unreliable!
     spi = DwfSPI(pin_cfg=pin_cfg, CPHA=1, CPOL=1)
     spi.initialize_pins()
 
