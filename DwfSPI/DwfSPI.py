@@ -37,8 +37,6 @@ class DwfSPI():
             raise ValueError("SPI pin setting is out of range!")
         dwf = cdll.dwf
         self.speed = speed
-        self.bit_period = 1/(speed)
-        self.half_bit_period = self.bit_period/2
         self.pin_cfg = pin_cfg
         self.CPOL = CPOL
         self.CPHA = CPHA
@@ -105,11 +103,16 @@ class DwfSPI():
         dwf.FDwfDigitalOutInternalClockInfo(hdwf, byref(hzSys))
 
         bit_divider_ratio = int(hzSys.value/self.speed)
+        logger.info("bit_divider_ratio: {}".format(bit_divider_ratio))
         sclk_divider_ratio = int(hzSys.value/self.speed/2)
+        logger.info("sclk_divider_ratio: {}".format(sclk_divider_ratio))
         ##set output enables for SPI pins
         #below doesn't work for some reason
         ##output_mask = self.MOSI_mask | self.SCLK_mask | self.SS_mask
         ##dwf.FDwfDigitalIOOutputEnableSet(hdwf, output_mask)
+        self.bit_period = sclk_divider_ratio*2/hzSys.value
+        logger.info("bit_period: {}".format(self.bit_period))
+        self.half_bit_period = sclk_divider_ratio/hzSys.value
 
         # DIO 2 Select 
         dwf.FDwfDigitalOutEnableSet(hdwf, self.pin_cfg.SS, 1)
@@ -134,9 +137,9 @@ class DwfSPI():
         dwf.FDwfDigitalOutTypeSet(hdwf, self.pin_cfg.MOSI, DwfDigitalOutTypeCustom) # 1=DwfDigitalOutTypeCustom
         # for high active clock, hold the first bit for 1.5 periods 
         dwf.FDwfDigitalOutDividerInitSet(hdwf, self.pin_cfg.MOSI,
-                int((1+0.5*self.CPHA)*bit_divider_ratio))
+                int((1+0.5*self.CPHA)*(sclk_divider_ratio*2))) #bit_divider_ratio
         # SPI frequency, bit frequency
-        dwf.FDwfDigitalOutDividerSet(hdwf, self.pin_cfg.MOSI, bit_divider_ratio)
+        dwf.FDwfDigitalOutDividerSet(hdwf, self.pin_cfg.MOSI, sclk_divider_ratio*2)
         dwf.FDwfDigitalOutIdleSet(hdwf, self.pin_cfg.MOSI, DwfDigitalOutIdleLow) # 1=DwfDigitalOutIdleLow 2=DwfDigitalOutIdleHigh
 
         return sclk_divider_ratio
@@ -186,7 +189,16 @@ class DwfSPI():
                 "Attempted write would exceed the output buffer length"
         #logger.info('bit_count: {}'.format(bit_count))
         # serialization time length
-        dwf.FDwfDigitalOutRunSet(hdwf, c_double((bit_count+0.4)/self.speed))
+        logger.debug("Bit count: {}".format(bit_count))
+        #runset = (bit_count+0.5*self.CPHA)*self.bit_period
+        #add just slightly less than a half a bit so we don't get an extra
+        #active clock edge but still allow enough time before CS going high
+        runset = (bit_count+0.49)*self.bit_period
+        logger.debug("Runset: {}".format(runset))
+        dwf.FDwfDigitalOutRunSet(hdwf, c_double(runset))
+        #read_back_runset = c_double()
+        #dwf.FDwfDigitalOutRunGet(hdwf, byref(read_back_runset))
+        #print("Read back run set: {}".format(read_back_runset.value))
 
         # set number of sample to acquire
         dwf.FDwfDigitalInBufferSizeSet(hdwf, sample_count)
