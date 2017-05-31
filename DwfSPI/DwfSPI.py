@@ -241,7 +241,7 @@ class DwfSPI():
         dwf.FDwfDigitalInStatusData(hdwf, byref(rgwSamples), 2*sample_count)
 
 
-        byte_array = []
+        byte_array = bytearray()
 
         b = 0
         logger.debug("Number of samples collected: {}".format(len(rgwSamples)))
