@@ -173,7 +173,8 @@ class DwfSPI():
 
 
 
-    def write(self, byte_array:bytes, lsb_tx_first=False, lsb_rx_first=False) -> bytes:
+    def write(self, byte_array:bytes, lsb_tx_first=False, lsb_rx_first=False,
+            err_clks=0) -> bytes:
         '''write an integer word and return the read back value'''
         sts = c_byte()
         dwf = self.dwf
@@ -183,7 +184,7 @@ class DwfSPI():
         #(1024 samples/2 = 512 bits = 64 bytes
         #2 samples consumed => 63 bytes (12 words)
         assert byte_count <= 63
-        bit_count = byte_count*8
+        bit_count = byte_count*8 + err_clks
         sample_count = bit_count*2+2 #sample at clock freq to cater for cpha
         assert sample_count < self.max_output_samples, \
                 "Attempted write would exceed the output buffer length"
