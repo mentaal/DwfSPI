@@ -103,15 +103,15 @@ class DwfSPI():
         dwf.FDwfDigitalOutInternalClockInfo(hdwf, byref(hzSys))
 
         bit_divider_ratio = int(hzSys.value/self.speed)
-        logger.info("bit_divider_ratio: {}".format(bit_divider_ratio))
+        logger.debug("bit_divider_ratio: {}".format(bit_divider_ratio))
         sclk_divider_ratio = int(hzSys.value/self.speed/2)
-        logger.info("sclk_divider_ratio: {}".format(sclk_divider_ratio))
+        logger.debug("sclk_divider_ratio: {}".format(sclk_divider_ratio))
         ##set output enables for SPI pins
         #below doesn't work for some reason
         ##output_mask = self.MOSI_mask | self.SCLK_mask | self.SS_mask
         ##dwf.FDwfDigitalIOOutputEnableSet(hdwf, output_mask)
         self.bit_period = sclk_divider_ratio*2/hzSys.value
-        logger.info("bit_period: {}".format(self.bit_period))
+        logger.debug("bit_period: {}".format(self.bit_period))
         self.half_bit_period = sclk_divider_ratio/hzSys.value
 
         # DIO 2 Select 
